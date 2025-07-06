@@ -34,7 +34,7 @@ function fixEmbeds(text: string): string {
 
 export default definePlugin({
     name: "EmbedFixer",
-    description: "Replaces furaffinity.net links in your messages with fxraffinity.net for better embeds.",
+    description: "Replaces various links in your messages with alternative domains for better embeds.",
     authors: [{ name: "BenjiThatFoxGuy", id: 263241553072488448n }],
 
     onBeforeMessageSend(_, msg) {
