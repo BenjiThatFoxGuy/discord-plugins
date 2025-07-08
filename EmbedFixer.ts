@@ -9,6 +9,8 @@ import definePlugin from "@utils/types";
 function fixEmbeds(text: string): string {
     // Reference: transform_urls from telegramuserbot
     const patterns: [RegExp, string][] = [
+        // Remove all query parameters from e621 /posts/ links
+        [/https?:\/\/e621\.net\/posts\/(\d+)(\?[^\s]*)?/gi, "https://e621.net/posts/$1"],
         [/(https?:\/\/)(www\.)?furaffinity\.net\/view\/(\d+)/gi, "$1fxraffinity.net/view/$3"],
         [/(https?:\/\/)(furaffinity\.net\/view\/(\d+))/gi, "$1fxraffinity.net/view/$3"],
         [/(https?:\/\/)(www\.)?(fxtwitter\.com|twitter\.com|x\.com)/gi, "$1fixupx.com"],
