@@ -15,7 +15,7 @@ import { convert as convertLineSP, getIdFromUrl as getLineStickerPackIdFromUrl, 
 import { isV1, migrate } from "../migrate-v1";
 import { deleteStickerPack, getStickerPack, getStickerPackMetas, saveStickerPack } from "../stickers";
 import { SettingsTabsKey, Sticker, StickerPack, StickerPackMeta } from "../types";
-import { cl, clPicker, Mutex, corsFetch } from "../utils";
+import { cl, clPicker, Mutex } from "../utils";
 import { startRemoteRefresh, stopRemoteRefresh } from "../remote";
 
 const mutex = new Mutex();
@@ -100,6 +100,8 @@ export const Settings = () => {
     const [lastRemoteRefresh, setLastRemoteRefresh] = React.useState<number | null>(null);
     const REMOTE_URLS_KEY = "MoreStickers:RemoteUrls";
     const REMOTE_LAST_REFRESH_KEY = "MoreStickers:RemoteLastRefresh";
+    const SEND_AS_URL_KEY = "MoreStickers:SendAsUrlNoConfirm";
+    const [sendAsUrlNoConfirm, setSendAsUrlNoConfirm] = React.useState<boolean>(false);
 
     async function refreshStickerPackMetas() {
         setstickerPackMetas(await getStickerPackMetas());
@@ -117,9 +119,11 @@ export const Settings = () => {
             const urls = (await DataStore.get(REMOTE_URLS_KEY)) as string | undefined;
             const interval = (await DataStore.get(`${REMOTE_URLS_KEY}:interval`)) as number | undefined;
             const last = (await DataStore.get(REMOTE_LAST_REFRESH_KEY)) as number | undefined;
+            const sendAsUrl = (await DataStore.get(SEND_AS_URL_KEY)) as boolean | undefined;
             setRemoteUrls(urls ?? "");
             setRemoteIntervalMins(typeof interval === "number" && interval > 0 ? interval : 720);
             setLastRemoteRefresh(typeof last === "number" ? last : null);
+            setSendAsUrlNoConfirm(Boolean(sendAsUrl));
         })();
     }, []);
 
@@ -474,6 +478,17 @@ export const Settings = () => {
                 tab === SettingsTabsKey.MISC &&
                 <div className="section">
                     <Forms.FormTitle tag="h5">Misc tools</Forms.FormTitle>
+
+                    <div style={{ marginBottom: 12 }}>
+                        <Forms.FormSwitch
+                            value={sendAsUrlNoConfirm}
+                            onChange={async (val: boolean) => {
+                                setSendAsUrlNoConfirm(val);
+                                await DataStore.set(SEND_AS_URL_KEY, val);
+                            }}
+                            note="If enabled, clicking a sticker will send its URL directly (no upload prompt), same as holding Shift."
+                        >Send as URL (without confirmation)</Forms.FormSwitch>
+                    </div>
 
                     <Flex flexDirection="row" style={{
                         alignItems: "center",

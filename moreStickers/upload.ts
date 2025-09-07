@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import * as DataStore from "@api/DataStore";
 import { findByPropsLazy } from "@webpack";
 import { ChannelStore, UploadHandler } from "@webpack/common";
 import { Sticker } from "./types";
@@ -33,7 +34,14 @@ export async function sendSticker({
         }
     }
 
-    if ((ctrlKey || !sendAsLink) && !shiftKey) {
+    // Read setting to determine default behavior
+    const SEND_AS_URL_KEY = "MoreStickers:SendAsUrlNoConfirm";
+    const prefSendAsUrl = Boolean(await DataStore.get(SEND_AS_URL_KEY));
+
+    // Effective flags: if pref is on, act as if Shift is held unless Ctrl is forcing upload
+    const effectiveShift = shiftKey || (prefSendAsUrl && !ctrlKey);
+
+    if ((ctrlKey || !sendAsLink) && !effectiveShift) {
         // Drag-and-drop equivalent: upload the original file as-is
         const response = await fetch(sticker.image);
         const blob = await response.blob();
@@ -43,7 +51,7 @@ export async function sendSticker({
 
         UploadHandler.promptToUpload([file], ChannelStore.getChannel(channelId), 0);
         return;
-    } else if (shiftKey) {
+    } else if (effectiveShift) {
         if (!messageContent.endsWith(" ") && !messageContent.endsWith("\n")) messageContent += " ";
         messageContent += sticker.image;
         MessageUtils._sendMessage(channelId, {
