@@ -12,7 +12,6 @@ import { JSX } from "react";
 import { PickerContent, PickerContentHeader, PickerContentRow, PickerContentRowGrid, PickerHeaderProps, SidebarProps, Sticker, StickerCategoryType, StickerPack } from "../types";
 import { sendSticker } from "../upload";
 import { clPicker } from "../utils";
-import { getUseCorsProxy } from "../utils";
 import { CategoryImage, CategoryScroller, CategoryWrapper, StickerCategory } from "./categories";
 import { CancelIcon, CogIcon, IconContainer, RecentlyUsedIcon, SearchIcon } from "./icons";
 import { addRecentSticker, getRecentStickers, Header, RECENT_STICKERS_ID, RECENT_STICKERS_TITLE, Settings } from "./misc";
@@ -114,11 +113,8 @@ function PickerContentRowGrid({
             onClick={e => {
                 if (!channelId) return;
 
-                let stickerToSend = sticker;
-                if (getUseCorsProxy()) {
-                    stickerToSend = { ...sticker, image: `https://corsproxy.io/?url=${encodeURIComponent(sticker.image)}` };
-                }
-                sendSticker({ channelId, sticker: stickerToSend, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey });
+                // Always proxy the sticker image URL
+                sendSticker({ channelId, sticker, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey });
                 addRecentSticker(sticker);
                 onSend(sticker, e.ctrlKey);
             }}
@@ -141,7 +137,7 @@ function PickerContentRowGrid({
                         }}>
                             <img
                                 alt={sticker.title}
-                                src={getUseCorsProxy() ? `https://corsproxy.io/?url=${encodeURIComponent(sticker.image)}` : sticker.image}
+                                src={sticker.image}
                                 draggable="false"
                                 data-id={sticker.id}
                                 className={clPicker("content-row-grid-img")}

@@ -23,7 +23,7 @@ function parseUrls(urlsText?: string): string[] {
 
 async function fetchOne(url: string): Promise<StickerPack[]> {
     try {
-        const res = await corsFetch(url);
+    const res = await fetch(url);
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const json = await res.json();
         if (Array.isArray(json)) return json as StickerPack[];

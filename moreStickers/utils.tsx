@@ -1,18 +1,3 @@
-// TypeScript: declare window.DataStore for plugin runtime
-declare global {
-    interface Window {
-        DataStore?: { get: (key: string) => any };
-    }
-}
-// Returns whether to use the CORS proxy for sticker images (default true)
-export function getUseCorsProxy() {
-    try {
-        if (typeof window !== "undefined" && window.DataStore && typeof window.DataStore.get === "function") {
-            return window.DataStore.get("MoreStickers:UseCorsProxy") !== false;
-        }
-    } catch (e) {}
-    return true;
-}
 /*
  * Vencord, a Discord client mod
  * Copyright (c) 2024 Vendicated and contributors
@@ -25,16 +10,6 @@ import { classNameFactory } from "@api/Styles";
 
 export const cl = classNameFactory("vc-more-stickers-");
 export const clPicker = (className: string, ...args: any[]) => cl("picker-" + className, ...args);
-
-const CORS_PROXY = "https://corsproxy.io/?url=";
-
-function corsUrl(url: string | URL) {
-    return CORS_PROXY + encodeURIComponent(url.toString());
-}
-
-export function corsFetch(url: string | URL, init?: RequestInit | undefined) {
-    return fetch(corsUrl(url), init);
-}
 
 export class Mutex {
     current = Promise.resolve();
