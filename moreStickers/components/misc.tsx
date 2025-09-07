@@ -5,7 +5,7 @@
  */
 
 import * as DataStore from "@api/DataStore";
-import { ModalRoot, ModalHeader, ModalContent, Button, Forms, React, Text } from "@webpack/common";
+import { Button, Forms, React, Text } from "@webpack/common";
 import { openModal } from "@utils/modal";
 import { CheckedTextInput } from "@components/CheckedTextInput";
 import { Flex } from "@components/Flex";
@@ -118,26 +118,22 @@ export const Settings = () => {
     function handleCorsProxyToggle(next: boolean) {
         if (!next) {
             openModal(modalProps => (
-                <ModalRoot size={ModalRoot.Sizes.SMALL} {...modalProps}>
-                    <ModalHeader>
-                        <Text tag="h2">Are you sure?</Text>
-                    </ModalHeader>
-                    <ModalContent>
-                        <Text color="red" style={{ fontWeight: 700, fontSize: 16 }}>
-                            Disabling the CORS proxy will most likely break sticker loading and uploading!<br />
-                            Only disable this if you know exactly what you are doing.<br /><br />
-                            Are you absolutely sure you want to proceed?
-                        </Text>
-                        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-                            <Button color={Button.Colors.RED} onClick={() => {
-                                setUseCorsProxy(false);
-                                DataStore.set(CORS_PROXY_KEY, false);
-                                modalProps.onClose();
-                            }}>Yes, I know what I'm doing</Button>
-                            <Button onClick={modalProps.onClose}>Cancel</Button>
-                        </div>
-                    </ModalContent>
-                </ModalRoot>
+                <div style={{ padding: 24, maxWidth: 400 }}>
+                    <Text tag="h2" style={{ color: "var(--status-danger)", fontWeight: 700, fontSize: 20, marginBottom: 12 }}>Are you sure?</Text>
+                    <Text color="red" style={{ fontWeight: 700, fontSize: 16 }}>
+                        Disabling the CORS proxy will most likely break sticker loading and uploading!<br />
+                        Only disable this if you know exactly what you are doing.<br /><br />
+                        Are you absolutely sure you want to proceed?
+                    </Text>
+                    <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                        <Button color={Button.Colors.RED} onClick={() => {
+                            setUseCorsProxy(false);
+                            DataStore.set(CORS_PROXY_KEY, false);
+                            modalProps.onClose();
+                        }}>Yes, I know what I'm doing</Button>
+                        <Button onClick={modalProps.onClose}>Cancel</Button>
+                    </div>
+                </div>
             ));
         } else {
             setUseCorsProxy(true);
