@@ -561,15 +561,6 @@ export const Settings = () => {
                     </Flex>
                 </div>
             }
-// Export for use in picker/upload
-export function getUseCorsProxy() {
-    try {
-        if (typeof window !== "undefined" && window.DataStore && typeof window.DataStore.get === "function") {
-            return window.DataStore.get("MoreStickers:UseCorsProxy") !== false;
-        }
-    } catch (e) {}
-    return true;
-}
             <Forms.FormDivider style={{
                 marginTop: "8px",
                 marginBottom: "8px"

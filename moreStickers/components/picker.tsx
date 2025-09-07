@@ -12,7 +12,7 @@ import { JSX } from "react";
 import { PickerContent, PickerContentHeader, PickerContentRow, PickerContentRowGrid, PickerHeaderProps, SidebarProps, Sticker, StickerCategoryType, StickerPack } from "../types";
 import { sendSticker } from "../upload";
 import { clPicker } from "../utils";
-import { getUseCorsProxy } from "./misc";
+import { getUseCorsProxy } from "../utils";
 import { CategoryImage, CategoryScroller, CategoryWrapper, StickerCategory } from "./categories";
 import { CancelIcon, CogIcon, IconContainer, RecentlyUsedIcon, SearchIcon } from "./icons";
 import { addRecentSticker, getRecentStickers, Header, RECENT_STICKERS_ID, RECENT_STICKERS_TITLE, Settings } from "./misc";

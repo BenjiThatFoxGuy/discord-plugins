@@ -1,3 +1,18 @@
+// TypeScript: declare window.DataStore for plugin runtime
+declare global {
+    interface Window {
+        DataStore?: { get: (key: string) => any };
+    }
+}
+// Returns whether to use the CORS proxy for sticker images (default true)
+export function getUseCorsProxy() {
+    try {
+        if (typeof window !== "undefined" && window.DataStore && typeof window.DataStore.get === "function") {
+            return window.DataStore.get("MoreStickers:UseCorsProxy") !== false;
+        }
+    } catch (e) {}
+    return true;
+}
 /*
  * Vencord, a Discord client mod
  * Copyright (c) 2024 Vendicated and contributors
