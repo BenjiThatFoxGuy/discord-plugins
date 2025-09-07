@@ -118,17 +118,20 @@ export async function sendSticker({
         let file: File | null = null;
 
         if (sticker?.isAnimated) {
-            if (!ffmpegState) {
-                throw new Error("FFmpeg state is not provided");
-            }
-            if (!ffmpegState?.ffmpeg) {
-                throw new Error("FFmpeg is not provided");
-            }
-            if (!ffmpegState?.isLoaded) {
-                throw new Error("FFmpeg is not loaded");
-            }
+            // if (!ffmpegState) {
+            //     throw new Error("FFmpeg state is not provided");
+            // }
+            // if (!ffmpegState?.ffmpeg) {
+            //     throw new Error("FFmpeg is not provided");
+            // }
+            // if (!ffmpegState?.isLoaded) {
+            //     throw new Error("FFmpeg is not loaded");
+            // }
 
-            file = await toGIF(sticker.image, ffmpegState.ffmpeg);
+            const response = await fetch(sticker.image);
+            const blob = await response.blob();
+            const filename = sticker.filename ?? (new URL(sticker.image)).pathname.split("/").pop() ?? "sticker.gif";
+            file = new File([blob], filename, { type: blob.type || "image/gif" });
         }
         else {
             const url = new URL(sticker.image);
