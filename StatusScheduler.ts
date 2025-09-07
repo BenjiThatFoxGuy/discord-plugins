@@ -23,7 +23,9 @@ interface StatusScheduleEntry {
 
 const defaultSchedule: StatusScheduleEntry[] = [
     { time: "10:00", status: "online" },
+    { time: "11:00", status: "online" },
     { time: "12:00", status: "online" },
+    { time: "13:00", status: "online" },
     { time: "00:00", status: "invisible" }
 ];
 
