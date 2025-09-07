@@ -1,0 +1,4 @@
+[submodule "botClient"]
+	path = botClient
+	url = https://github.com/aiko-chan-ai/VencordDBCPlugin
+	branch = main
