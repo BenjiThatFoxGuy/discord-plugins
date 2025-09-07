@@ -418,6 +418,8 @@ export const Settings = () => {
                     <Forms.FormTitle tag="h5">Remote Sticker Pack URLs</Forms.FormTitle>
                     <Forms.FormText>
                         Enter one URL per line. Each URL should point to a .stickerpack, .stickerpacks, or JSON file.
+                        NOTE: Do NOT remove those URLs if you want to keep the sticker packs up to date.
+                        Also, if you remove the URLs you added, you need to remove the sticker packs manually.
                     </Forms.FormText>
                     <Flex flexDirection="column" style={{ gap: 8 }}>
                         <TextArea
