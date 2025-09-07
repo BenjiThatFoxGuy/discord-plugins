@@ -6,7 +6,6 @@ import * as DataStore from "@api/DataStore";
 
 import { saveStickerPack } from "./stickers";
 import { StickerPack } from "./types";
-import { corsFetch } from "./utils";
 
 export const REMOTE_URLS_KEY = "MoreStickers:RemoteUrls";
 export const REMOTE_LAST_REFRESH_KEY = "MoreStickers:RemoteLastRefresh";

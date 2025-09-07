@@ -183,7 +183,7 @@ export const Settings = () => {
                         <p>
                             Currently LINE stickers/emojis supported only. <br />
 
-                            Get Telegram stickers with <a href="#" onClick={() => VencordNative.native.openExternal("https://github.com/lekoOwO/MoreStickersConverter")}> MoreStickersConverter</a>.
+                            Get Telegram stickers with <a href="#" onClick={(e) => { e.preventDefault(); const url = "https://github.com/lekoOwO/MoreStickersConverter"; (globalThis as any)?.VencordNative?.native?.openExternal?.(url) ?? window.open(url, "_blank"); }}> MoreStickersConverter</a>.
                         </p>
                     </Forms.FormText>
                     <Flex flexDirection="row" style={{
@@ -480,14 +480,21 @@ export const Settings = () => {
                     <Forms.FormTitle tag="h5">Misc tools</Forms.FormTitle>
 
                     <div style={{ marginBottom: 12 }}>
-                        <Forms.FormSwitch
-                            value={sendAsUrlNoConfirm}
-                            onChange={async (val: boolean) => {
-                                setSendAsUrlNoConfirm(val);
-                                await DataStore.set(SEND_AS_URL_KEY, val);
-                            }}
-                            note="If enabled, clicking a sticker will send its URL directly (no upload prompt), same as holding Shift."
-                        >Send as URL (without confirmation)</Forms.FormSwitch>
+                        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <input
+                                type="checkbox"
+                                checked={sendAsUrlNoConfirm}
+                                onChange={async (e) => {
+                                    const val = e.currentTarget.checked;
+                                    setSendAsUrlNoConfirm(val);
+                                    await DataStore.set(SEND_AS_URL_KEY, val);
+                                }}
+                            />
+                            <span>Send as URL (without confirmation)</span>
+                        </label>
+                        <Forms.FormText type="description">
+                            If enabled, clicking a sticker sends its URL directly (no upload prompt), same as holding Shift. Use Ctrl+Click to force upload.
+                        </Forms.FormText>
                     </div>
 
                     <Flex flexDirection="row" style={{
