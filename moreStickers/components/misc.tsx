@@ -564,14 +564,11 @@ export const Settings = () => {
 // Export for use in picker/upload
 export function getUseCorsProxy() {
     try {
-        // Use DataStore global if available, fallback to true
         if (typeof window !== "undefined" && window.DataStore && typeof window.DataStore.get === "function") {
             return window.DataStore.get("MoreStickers:UseCorsProxy") !== false;
         }
-        return true;
-    } catch (e) {
-        return true;
-    }
+    } catch (e) {}
+    return true;
 }
             <Forms.FormDivider style={{
                 marginTop: "8px",
