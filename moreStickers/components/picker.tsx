@@ -11,7 +11,7 @@ import { JSX } from "react";
 
 import { PickerContent, PickerContentHeader, PickerContentRow, PickerContentRowGrid, PickerHeaderProps, SidebarProps, Sticker, StickerCategoryType, StickerPack } from "../types";
 import { sendSticker } from "../upload";
-import { clPicker, FFmpegStateContext } from "../utils";
+import { clPicker } from "../utils";
 import { CategoryImage, CategoryScroller, CategoryWrapper, StickerCategory } from "./categories";
 import { CancelIcon, CogIcon, IconContainer, RecentlyUsedIcon, SearchIcon } from "./icons";
 import { addRecentSticker, getRecentStickers, Header, RECENT_STICKERS_ID, RECENT_STICKERS_TITLE, Settings } from "./misc";
@@ -101,11 +101,7 @@ function PickerContentRowGrid({
     onSend = () => { },
     isHovered = false
 }: PickerContentRowGrid) {
-    if (FFmpegStateContext === undefined) {
-        return <div>FFmpegStateContext is undefined</div>;
-    }
-
-    const ffmpegState = React.useContext(FFmpegStateContext);
+    // No FFmpeg state required
 
     return (
         <div
@@ -119,7 +115,7 @@ function PickerContentRowGrid({
 
                 // Always proxy the sticker image URL
                 const proxiedSticker = { ...sticker, image: `https://corsproxy.io/?url=${encodeURIComponent(sticker.image)}` };
-                sendSticker({ channelId, sticker: proxiedSticker, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, ffmpegState });
+                sendSticker({ channelId, sticker: proxiedSticker, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey });
                 addRecentSticker(sticker);
                 onSend(sticker, e.ctrlKey);
             }}

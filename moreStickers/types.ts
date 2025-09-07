@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import type { FFmpeg } from "@ffmpeg/ffmpeg";
 
 export interface CategoryImageProps {
     src: string;
@@ -155,10 +154,7 @@ export interface StickerPack extends StickerPackMeta {
     stickers: Sticker[];
 }
 
-export interface FFmpegState {
-    ffmpeg?: FFmpeg;
-    isLoaded: boolean;
-}
+// FFmpegState removed; no longer needed.
 
 export interface DynamicPackSetMeta {
     id: string;
