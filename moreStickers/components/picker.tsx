@@ -119,7 +119,7 @@ function PickerContentRowGrid({
 
                 // Always proxy the sticker image URL
                 const proxiedSticker = { ...sticker, image: `https://corsproxy.io/?url=${encodeURIComponent(sticker.image)}` };
-                sendSticker({ channelId, sticker: proxiedSticker, ctrlKey: e.ctrlKey, shiftKey: true, ffmpegState });
+                sendSticker({ channelId, sticker: proxiedSticker, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, ffmpegState });
                 addRecentSticker(sticker);
                 onSend(sticker, e.ctrlKey);
             }}
