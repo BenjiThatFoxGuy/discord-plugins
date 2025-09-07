@@ -5,6 +5,8 @@
  */
 
 import * as DataStore from "@api/DataStore";
+import { ModalRoot, ModalHeader, ModalContent, Button, Forms, React, Text } from "@webpack/common";
+import { openModal } from "@utils/modal";
 import { CheckedTextInput } from "@components/CheckedTextInput";
 import { Flex } from "@components/Flex";
 import { Button, Forms, React, TabBar, Text, TextArea, Toasts } from "@webpack/common";
@@ -98,6 +100,8 @@ export const Settings = () => {
     const [remoteUrls, setRemoteUrls] = React.useState<string>("");
     const [remoteIntervalMins, setRemoteIntervalMins] = React.useState<number>(720);
     const [lastRemoteRefresh, setLastRemoteRefresh] = React.useState<number | null>(null);
+    const [useCorsProxy, setUseCorsProxy] = React.useState<boolean>(true);
+    const CORS_PROXY_KEY = "MoreStickers:UseCorsProxy";
     const REMOTE_URLS_KEY = "MoreStickers:RemoteUrls";
     const REMOTE_LAST_REFRESH_KEY = "MoreStickers:RemoteLastRefresh";
 
@@ -106,7 +110,40 @@ export const Settings = () => {
     }
     React.useEffect(() => {
         refreshStickerPackMetas();
+        (async () => {
+            const stored = await DataStore.get(CORS_PROXY_KEY);
+            setUseCorsProxy(stored !== false); // default true
+        })();
     }, []);
+    function handleCorsProxyToggle(next: boolean) {
+        if (!next) {
+            openModal(modalProps => (
+                <ModalRoot size={ModalRoot.Sizes.SMALL} {...modalProps}>
+                    <ModalHeader>
+                        <Text tag="h2">Are you sure?</Text>
+                    </ModalHeader>
+                    <ModalContent>
+                        <Text color="red" style={{ fontWeight: 700, fontSize: 16 }}>
+                            Disabling the CORS proxy will most likely break sticker loading and uploading!<br />
+                            Only disable this if you know exactly what you are doing.<br /><br />
+                            Are you absolutely sure you want to proceed?
+                        </Text>
+                        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                            <Button color={Button.Colors.RED} onClick={() => {
+                                setUseCorsProxy(false);
+                                DataStore.set(CORS_PROXY_KEY, false);
+                                modalProps.onClose();
+                            }}>Yes, I know what I'm doing</Button>
+                            <Button onClick={modalProps.onClose}>Cancel</Button>
+                        </div>
+                    </ModalContent>
+                </ModalRoot>
+            ));
+        } else {
+            setUseCorsProxy(true);
+            DataStore.set(CORS_PROXY_KEY, true);
+        }
+    }
     React.useEffect(() => {
         isV1().then(setV1);
     }, []);
@@ -474,7 +511,13 @@ export const Settings = () => {
                 tab === SettingsTabsKey.MISC &&
                 <div className="section">
                     <Forms.FormTitle tag="h5">Misc tools</Forms.FormTitle>
-
+                    <Flex flexDirection="row" style={{ alignItems: "center", gap: 12, marginBottom: 12 }}>
+                        <Forms.FormSwitch
+                            value={useCorsProxy}
+                            onChange={handleCorsProxyToggle}
+                            note="Use CORS proxy for sticker images (recommended, required for most users)"
+                        >Use CORS proxy for sticker images</Forms.FormSwitch>
+                    </Flex>
                     <Flex flexDirection="row" style={{
                         alignItems: "center",
                         justifyContent: "start"
@@ -518,6 +561,18 @@ export const Settings = () => {
                     </Flex>
                 </div>
             }
+// Export for use in picker/upload
+export function getUseCorsProxy() {
+    try {
+        // Use DataStore global if available, fallback to true
+        if (typeof window !== "undefined" && window.DataStore && typeof window.DataStore.get === "function") {
+            return window.DataStore.get("MoreStickers:UseCorsProxy") !== false;
+        }
+        return true;
+    } catch (e) {
+        return true;
+    }
+}
             <Forms.FormDivider style={{
                 marginTop: "8px",
                 marginBottom: "8px"
