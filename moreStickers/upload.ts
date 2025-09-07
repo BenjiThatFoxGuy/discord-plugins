@@ -21,7 +21,6 @@ export async function sendSticker({
 }: { channelId: string; sticker: Sticker; sendAsLink?: boolean; ctrlKey: boolean; shiftKey: boolean; }) {
 
     let messageContent = "";
-    const { textEditor } = Vencord.Plugins.plugins.MoreStickers as any;
     if (DraftStore) {
         messageContent = DraftStore.getDraft(channelId, 0);
     }
@@ -45,16 +44,11 @@ export async function sendSticker({
         UploadHandler.promptToUpload([file], ChannelStore.getChannel(channelId), 0);
         return;
     } else if (shiftKey) {
-        if (!messageContent.endsWith(" ") || !messageContent.endsWith("\n")) messageContent += " ";
+        if (!messageContent.endsWith(" ") && !messageContent.endsWith("\n")) messageContent += " ";
         messageContent += sticker.image;
-
-        if (ctrlKey && textEditor && textEditor.insertText && typeof textEditor.insertText === "function") {
-            textEditor.insertText(messageContent);
-        } else {
-            MessageUtils._sendMessage(channelId, {
-                content: sticker.image
-            }, messageOptions || {});
-        }
+        MessageUtils._sendMessage(channelId, {
+            content: sticker.image
+        }, messageOptions || {});
     } else {
         MessageUtils._sendMessage(channelId, {
             content: `${messageContent} ${sticker.image}`.trim()
