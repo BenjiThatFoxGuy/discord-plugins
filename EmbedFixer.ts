@@ -119,35 +119,15 @@ export default definePlugin({
     description: "Replaces various links in your messages with alternative domains for better embeds.",
     authors: [{ name: "BenjiThatFoxGuy", id: 263241553072488448n }],
 
-    commands: [
-        {
-            name: "fixembeds",
-            description: "Manually apply embed fixes to text",
-            options: [
-                {
-                    name: "text",
-                    description: "Text containing links to fix",
-                    type: 3, // ApplicationCommandOptionType.STRING
-                    required: true
-                }
-            ],
-            execute: (args: any[], ctx: any) => {
-                const text = args[0] || ctx.content;
-                if (typeof text === "string") {
-                    const fixed = fixEmbedsManual(text);
-                    return {
-                        content: fixed,
-                        sendLater: true
-                    };
-                }
-                return { content: "No text provided" };
-            }
-        }
-    ],
-
     onBeforeMessageSend(_channelId: string, msg: { content?: string }) {
         if (typeof msg.content === "string") {
-            msg.content = fixEmbeds(msg.content);
+            // Check for /fix prefix to trigger manual embed fixing
+            if (msg.content.startsWith("/fix ")) {
+                const urlContent = msg.content.slice(5); // Remove "/fix " prefix
+                msg.content = fixEmbedsManual(urlContent);
+            } else {
+                msg.content = fixEmbeds(msg.content);
+            }
         }
     }
 });
