@@ -122,16 +122,25 @@ export default definePlugin({
     commands: [
         {
             name: "fixembeds",
-            description: "Manually apply embed fixes to the current message",
-            inputType: 1, // ApplicationCommandInputType.BUILT_IN_TEXT
-            execute: (_args: any, ctx: any) => {
-                const content = ctx.content;
-                if (typeof content === "string") {
-                    const fixed = fixEmbedsManual(content);
+            description: "Manually apply embed fixes to text",
+            options: [
+                {
+                    name: "text",
+                    description: "Text containing links to fix",
+                    type: 3, // ApplicationCommandOptionType.STRING
+                    required: true
+                }
+            ],
+            execute: (args: any[], ctx: any) => {
+                const text = args[0] || ctx.content;
+                if (typeof text === "string") {
+                    const fixed = fixEmbedsManual(text);
                     return {
-                        content: fixed
+                        content: fixed,
+                        sendLater: true
                     };
                 }
+                return { content: "No text provided" };
             }
         }
     ],
