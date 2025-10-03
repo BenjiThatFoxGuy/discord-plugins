@@ -26,6 +26,7 @@ function fixEmbeds(text: string): string {
         [/(https?:\/\/)(www\.)?medium\.com/gi, "$1scribe.rip"],
         [/(https?:\/\/)(www\.)?pinterest\.com/gi, "$1pinboard.in"],
         [/(https?:\/\/)(www\.)?soundcloud\.com/gi, "$1sndcdn.com"],
+        [/(https?:\/\/)e621\.net\/posts\/(\d+)/gi, "$1fx.benjifox.gay/$2"],
     ];
     for (const [pattern, replacement] of patterns) {
         text = text.replace(pattern, replacement);
