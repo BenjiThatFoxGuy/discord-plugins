@@ -119,6 +119,23 @@ export default definePlugin({
     description: "Replaces various links in your messages with alternative domains for better embeds.",
     authors: [{ name: "BenjiThatFoxGuy", id: 263241553072488448n }],
 
+    commands: [
+        {
+            name: "fixembeds",
+            description: "Manually apply embed fixes to the current message",
+            inputType: 1, // ApplicationCommandInputType.BUILT_IN_TEXT
+            execute: (_args: any, ctx: any) => {
+                const content = ctx.content;
+                if (typeof content === "string") {
+                    const fixed = fixEmbedsManual(content);
+                    return {
+                        content: fixed
+                    };
+                }
+            }
+        }
+    ],
+
     onBeforeMessageSend(_channelId: string, msg: { content?: string }) {
         if (typeof msg.content === "string") {
             msg.content = fixEmbeds(msg.content);
