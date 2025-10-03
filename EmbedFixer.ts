@@ -6,6 +6,25 @@
 
 import definePlugin from "@utils/types";
 
+const markdownDetectors: RegExp[] = [
+    /```/,
+    /`[^`]*`/,
+    /\[[^\]]+\]\([^\)]+\)/,
+    /(^|\s)\*\*(?=\S)(.*?)(?<=\S)\*\*(?=\s|$)/,
+    /(^|\s)\*(?=\S)(.*?)(?<=\S)\*(?=\s|$)/,
+    /(^|\s)__(?=\S)(.*?)(?<=\S)__(?=\s|$)/,
+    /(^|\s)_(?=\S)(.*?)(?<=\S)_(?=\s|$)/,
+    /~~(?=\S)(.*?)(?<=\S)~~/,
+    /\|\|(?=\S)(.*?)(?<=\S)\|\|/,
+    /(^|\n)>\s/,
+    /(^|\n)(?:-|\*|\d+\.)\s/,
+    /<https?:\/\/[^>]+>/
+];
+
+function containsMarkdownSyntax(text: string): boolean {
+    return markdownDetectors.some((detector) => detector.test(text));
+}
+
 function fixEmbeds(text: string): string {
     // Reference: transform_urls from telegramuserbot
     /**
@@ -42,6 +61,7 @@ function fixEmbeds(text: string): string {
      * - https://vrchat.com/home/launch?worldId=WRLD_123489384938943 -> https://vrchat.com/home/world/WRLD_123489384938943
      * - https://alist.benjifox.gay/d/Terabox/FILE_ID?dl=1 -> https://terabox.benjifox.gay/d/FILE_ID?dl=1
      */
+    const originalText = text;
     // Protect escaped URLs (e.g. \https://example) so they bypass proxying while
     // also dropping the leading backslash in the final output.
     const escapedUrls: string[] = [];
@@ -50,6 +70,8 @@ function fixEmbeds(text: string): string {
         escapedUrls.push(url);
         return placeholder;
     });
+
+    const shouldRewrite = !containsMarkdownSyntax(originalText);
 
     const patterns: [RegExp, string][] = [
         // Remove query parameters and transform e621 /posts/ links to fx.benjifox.gay
@@ -70,8 +92,10 @@ function fixEmbeds(text: string): string {
         [/(https?:\/\/)(www\.)?pinterest\.com/gi, "$1pinboard.in"],
         [/(https?:\/\/)(www\.)?soundcloud\.com/gi, "$1sndcdn.com"],
     ];
-    for (const [pattern, replacement] of patterns) {
-        text = text.replace(pattern, replacement);
+    if (shouldRewrite) {
+        for (const [pattern, replacement] of patterns) {
+            text = text.replace(pattern, replacement);
+        }
     }
 
     for (let index = 0; index < escapedUrls.length; index++) {
