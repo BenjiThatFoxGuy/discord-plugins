@@ -6,6 +6,71 @@
 
 import definePlugin from "@utils/types";
 
+function isEscaped(input: string, startIndex: number): boolean {
+    let backslashCount = 0;
+    for (let idx = startIndex - 1; idx >= 0 && input[idx] === "\\"; idx--) {
+        backslashCount++;
+    }
+    return (backslashCount & 1) === 1;
+}
+
+function applyReplacementTemplate(
+    template: string,
+    match: string,
+    captures: Array<string | undefined>,
+    offset: number,
+    input: string
+): string {
+    return template.replace(/\$(\$|&|`|'|\d{1,2})/g, (_, token: string) => {
+        switch (token) {
+            case "$":
+                return "$";
+            case "&":
+                return match;
+            case "`":
+                return input.slice(0, offset);
+            case "'":
+                return input.slice(offset + match.length);
+            default: {
+                const groupIndex = Number(token) - 1;
+                if (Number.isNaN(groupIndex) || groupIndex < 0) {
+                    return "";
+                }
+                return captures[groupIndex] ?? "";
+            }
+        }
+    });
+}
+
+function createReplacement(replacement: string) {
+    return (
+        match: string,
+        ...rest: Array<string | number | Record<string, string> | undefined>
+    ): string => {
+        let input = "";
+        let offset = 0;
+        if (
+            rest.length > 0 &&
+            typeof rest[rest.length - 1] === "object" &&
+            rest[rest.length - 1] !== null &&
+            !Array.isArray(rest[rest.length - 1])
+        ) {
+            rest.pop();
+        }
+        if (rest.length > 0) {
+            input = String(rest.pop());
+        }
+        if (rest.length > 0) {
+            offset = Number(rest.pop());
+        }
+        const captures = rest as Array<string | undefined>;
+        if (isEscaped(input, offset)) {
+            return match;
+        }
+        return applyReplacementTemplate(replacement, match, captures, offset, input);
+    };
+}
+
 function fixEmbeds(text: string): string {
     // Reference: transform_urls from telegramuserbot
     /**
@@ -62,7 +127,8 @@ function fixEmbeds(text: string): string {
         [/(https?:\/\/)(www\.)?soundcloud\.com/gi, "$1sndcdn.com"],
     ];
     for (const [pattern, replacement] of patterns) {
-        text = text.replace(pattern, replacement);
+        // Respect Discord-style escaping: \https://example stays untouched.
+        text = text.replace(pattern, createReplacement(replacement));
     }
     return text;
 }
@@ -73,13 +139,13 @@ export default definePlugin({
     description: "Replaces various links in your messages with alternative domains for better embeds.",
     authors: [{ name: "BenjiThatFoxGuy", id: 263241553072488448n }],
 
-    onBeforeMessageSend(_, msg) {
+    onBeforeMessageSend(_channelId: string, msg: { content?: string }) {
         if (typeof msg.content === "string") {
             msg.content = fixEmbeds(msg.content);
         }
     },
 
-    onBeforeMessageEdit(_cid, _mid, msg) {
+    onBeforeMessageEdit(_cid: string, _mid: string, msg: { content?: string }) {
         if (typeof msg.content === "string") {
             msg.content = fixEmbeds(msg.content);
         }
