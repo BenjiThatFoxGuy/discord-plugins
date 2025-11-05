@@ -20,7 +20,9 @@ const autoPatterns: PatternRule[] = [
     [/(https?:\/\/terabox\.benjifox\.gay\/d\/Terabox\/([a-zA-Z0-9_-]+)(\?.*)?)/gi, "https://terabox.benjifox.gay/d/$2$3"],
     [/(https?:\/\/alist\.benjifox\.gay\/d\/Terabox\/([a-zA-Z0-9_-]+)(\?.*)?)/gi, "https://terabox.benjifox.gay/d/$2$3"],
     [/(https?:\/\/)(www\.)?bsky\.app/gi, "$1fxbsky.app"],
-    [/(https?:\/\/)(www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/gi, "$1youtube.com/watch?v=$3"],
+    // YouTube: transform shorts to regular videos and change domain to koutube.com
+    [/(https?:\/\/)(www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/gi, "$1koutube.com/watch?v=$3"],
+    [/(https?:\/\/)(www\.)?youtube\.com/gi, "$1koutube.com"],
     [/(https?:\/\/)(www\.)?instagram\.com/gi, "$1kkinstagram.com"],
     [/(https?:\/\/)(www\.)?tiktok\.com/gi, "$1proxitok.pabloferreiro.es"],
     [/(https?:\/\/)(www\.)?medium\.com/gi, "$1scribe.rip"],
