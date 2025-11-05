@@ -80,7 +80,8 @@ function processEmbeds(text: string, patterns: PatternRule[], guardMarkdown: boo
      * Examples:
      * - https://e621.net/posts/12345?utm=foo -> https://e621.net/posts/12345 (auto) / https://fx.benjifox.gay/12345 (manual)
      * - https://x.com/user/status/abc -> https://fixupx.com/user/status/abc
-     * - https://www.youtube.com/shorts/XYZ -> https://www.youtube.com/watch?v=XYZ
+     * - https://www.youtube.com/shorts/XYZ -> https://www.koutube.com/watch?v=XYZ
+     * - https://www.youtube.com/watch?v=XYZ -> https://www.koutube.com/watch?v=XYZ
      * - https://vrchat.com/home/launch?worldId=WRLD_123489384938943 -> https://vrchat.com/home/world/WRLD_123489384938943
      * - https://alist.benjifox.gay/d/Terabox/FILE_ID?dl=1 -> https://terabox.benjifox.gay/d/FILE_ID?dl=1
      */
