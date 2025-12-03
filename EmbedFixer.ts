@@ -28,6 +28,7 @@ const autoPatterns: PatternRule[] = [
     [/(https?:\/\/)(www\.)?medium\.com/gi, "$1scribe.rip"],
     [/(https?:\/\/)(www\.)?pinterest\.com/gi, "$1pinboard.in"],
     [/(https?:\/\/)(www\.)?soundcloud\.com/gi, "$1sndcdn.com"],
+    [/(https?:\/\/)(www\.)?t\.me\/([^\s]+)/gi, "$1fx.benjifox.gay/tg/$3"],
 ];
 
 const manualPatterns: PatternRule[] = [
