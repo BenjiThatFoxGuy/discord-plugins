@@ -7,11 +7,10 @@
 import definePlugin from "@utils/types";
 
 import { findByPropsLazy } from "@webpack";
-import { FluxDispatcher } from "@webpack/common";
+import { ComponentDispatch, FluxDispatcher } from "@webpack/common";
 
 // Lazily resolved; will be available once Discord's modules are loaded.
 const PresenceStore = findByPropsLazy("getPresence");
-const UserProfileStore = findByPropsLazy("getUserProfile");
 
 const STYLE_ID = "vc-nuke-activities";
 
@@ -30,6 +29,14 @@ function ensureStyle(): void {
     [aria-label^="Competing "] {
       display: none !important;
     }
+
+    /* Optional UX hard-disable: if the sidebars still get opened, hide them entirely */
+    aside[aria-label="Members"],
+    aside[aria-label="User Profile"],
+    aside[aria-label="Profile"],
+    aside[aria-label="User profile"] {
+      display: none !important;
+    }
   `;
 
   (document.head ?? document.documentElement).appendChild(style);
@@ -46,63 +53,6 @@ function sanitizePresenceLike<T extends Record<string, any> | null | undefined>(
     return { ...(presence as any), activities: [] } as T;
   }
   return presence;
-}
-
-function sanitizeActivitiesDeep<T>(value: T, depth = 4): T {
-  if (depth <= 0) return value;
-  if (!value || typeof value !== "object") return value;
-
-  // Arrays: sanitize each entry (copy-on-write)
-  if (Array.isArray(value)) {
-    let changed = false;
-    const next = (value as any[]).map((v) => {
-      const sv = sanitizeActivitiesDeep(v, depth - 1);
-      changed ||= sv !== v;
-      return sv;
-    });
-    return (changed ? next : value) as any as T;
-  }
-
-  const obj = value as any;
-
-  // If this looks like a presence/profile node with activities, drop them.
-  if (Array.isArray(obj.activities)) {
-    if (obj.activities.length === 0) return value;
-    return { ...obj, activities: [] } as T;
-  }
-
-  // Common alternative key names seen in experiments.
-  if (Array.isArray(obj.activity)) {
-    return { ...obj, activity: [] } as T;
-  }
-
-  // Generic object: walk a small subset of likely keys to avoid heavy cloning.
-  const keysToVisit = [
-    "presence",
-    "userProfile",
-    "profile",
-    "profileUser",
-    "user",
-    "member",
-    "data",
-    "updates",
-    "presences",
-    "relationships",
-  ];
-
-  let changed = false;
-  const next: any = { ...obj };
-  for (const key of keysToVisit) {
-    if (!(key in obj)) continue;
-    const before = obj[key];
-    const after = sanitizeActivitiesDeep(before, depth - 1);
-    if (after !== before) {
-      next[key] = after;
-      changed = true;
-    }
-  }
-
-  return (changed ? next : value) as T;
 }
 
 function sanitizePresenceUpdateEntry<T>(entry: T): T {
@@ -128,13 +78,8 @@ function sanitizePresenceAction(action: unknown): unknown {
   const act = action as any;
   const type = String(act.type ?? "");
 
-  // Keep this tight: only touch presence/activity/profile actions.
-  const shouldTouch =
-    type.includes("PRESENCE") ||
-    type.includes("ACTIVITY") ||
-    type.includes("PROFILE") ||
-    type.includes("USER_PROFILE");
-  if (!shouldTouch) return action;
+  // Keep this tight: we only touch presence/activity actions.
+  if (!type.includes("PRESENCE") && !type.includes("ACTIVITY")) return action;
 
   let changed = false;
   const next: any = { ...act };
@@ -163,15 +108,28 @@ function sanitizePresenceAction(action: unknown): unknown {
     }
   }
 
-  // Profile payloads can embed activities in deeper objects.
-  const deepSanitized = sanitizeActivitiesDeep(next, 4);
-  return deepSanitized !== next ? deepSanitized : (changed ? next : action);
+  return changed ? next : action;
+}
+
+function shouldBlockSidebarToggle(actionType: string): boolean {
+  // Keep this narrow: only block the obvious member list / user profile toggles.
+  // Avoid matching generic "SIDEBAR" actions (thread sidebar, search, etc.).
+  return /(\b|_)(MEMBERS?_?LIST)(\b|_)/i.test(actionType)
+    || /(\b|_)(USER_?PROFILE|PROFILE_?PANEL)(\b|_)/i.test(actionType);
+}
+
+function shouldBlockComponentDispatch(eventName: unknown): boolean {
+  if (typeof eventName !== "string") return false;
+  return shouldBlockSidebarToggle(eventName);
 }
 
 type DispatchFn = typeof FluxDispatcher.dispatch;
 let originalDispatch: DispatchFn | null = null;
 let originalGetPresence: ((userId: string) => any) | null = null;
-let originalGetUserProfile: ((userId: string) => any) | null = null;
+
+type ComponentDispatchFn = typeof ComponentDispatch.dispatchToLastSubscribed;
+let originalComponentDispatchToLast: ComponentDispatchFn | null = null;
+let originalComponentDispatchDispatch: ((...args: any[]) => any) | null = null;
 
 export default definePlugin({
   name: "NukeActivities",
@@ -187,19 +145,34 @@ export default definePlugin({
     // Patch store getter so any UI reading presence gets a sanitized copy.
     if (PresenceStore?.getPresence && !originalGetPresence) {
       originalGetPresence = PresenceStore.getPresence.bind(PresenceStore);
-      PresenceStore.getPresence = (userId: string) => sanitizeActivitiesDeep(originalGetPresence!(userId), 4);
-    }
-
-    // DM user sidebar / flyouts often read from a profile store rather than presence.
-    if (UserProfileStore?.getUserProfile && !originalGetUserProfile) {
-      originalGetUserProfile = UserProfileStore.getUserProfile.bind(UserProfileStore);
-      UserProfileStore.getUserProfile = (userId: string) => sanitizeActivitiesDeep(originalGetUserProfile!(userId), 4);
+      PresenceStore.getPresence = (userId: string) => sanitizePresenceLike(originalGetPresence!(userId));
     }
 
     // Patch dispatcher so presence updates never populate activities in the first place.
     if (!originalDispatch) {
       originalDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
-      FluxDispatcher.dispatch = (action: unknown) => originalDispatch!(sanitizePresenceAction(action) as any);
+      FluxDispatcher.dispatch = (action: unknown) => {
+        const type = String((action as any)?.type ?? "");
+        if (type && shouldBlockSidebarToggle(type)) return;
+        return originalDispatch!(sanitizePresenceAction(action) as any);
+      };
+    }
+
+    // Many header bar buttons dispatch via ComponentDispatch rather than Flux actions.
+    if (ComponentDispatch?.dispatchToLastSubscribed && !originalComponentDispatchToLast) {
+      originalComponentDispatchToLast = ComponentDispatch.dispatchToLastSubscribed.bind(ComponentDispatch);
+      ComponentDispatch.dispatchToLastSubscribed = (...args: any[]) => {
+        if (shouldBlockComponentDispatch(args[0])) return;
+        return originalComponentDispatchToLast!(...args);
+      };
+    }
+
+    if (ComponentDispatch?.dispatch && !originalComponentDispatchDispatch) {
+      originalComponentDispatchDispatch = ComponentDispatch.dispatch.bind(ComponentDispatch);
+      ComponentDispatch.dispatch = (...args: any[]) => {
+        if (shouldBlockComponentDispatch(args[0])) return;
+        return originalComponentDispatchDispatch!(...args);
+      };
     }
   },
 
@@ -211,14 +184,19 @@ export default definePlugin({
       originalDispatch = null;
     }
 
+    if (originalComponentDispatchToLast && ComponentDispatch?.dispatchToLastSubscribed) {
+      ComponentDispatch.dispatchToLastSubscribed = originalComponentDispatchToLast;
+      originalComponentDispatchToLast = null;
+    }
+
+    if (originalComponentDispatchDispatch && ComponentDispatch?.dispatch) {
+      ComponentDispatch.dispatch = originalComponentDispatchDispatch;
+      originalComponentDispatchDispatch = null;
+    }
+
     if (originalGetPresence && PresenceStore?.getPresence) {
       PresenceStore.getPresence = originalGetPresence;
       originalGetPresence = null;
-    }
-
-    if (originalGetUserProfile && UserProfileStore?.getUserProfile) {
-      UserProfileStore.getUserProfile = originalGetUserProfile;
-      originalGetUserProfile = null;
     }
   },
 });
