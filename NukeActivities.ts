@@ -14,56 +14,6 @@ const PresenceStore = findByPropsLazy("getPresence");
 
 const STYLE_ID = "vc-nuke-activities";
 
-const CHANNEL_SECTION_STORAGE_KEYS = ["ChannelSectionStore2"] as const;
-
-function sanitizeChannelSectionStoreString(raw: string | null): string | null {
-  if (!raw) return raw;
-  try {
-    const parsed = JSON.parse(raw) as any;
-    const state = parsed?._state;
-    if (!state || typeof state !== "object") return raw;
-
-    // Force these to be disabled.
-    const nextState = {
-      ...state,
-      isMembersOpen: false,
-      isProfileOpen: false,
-    };
-
-    // Only rewrite if something actually changes.
-    if (state.isMembersOpen === nextState.isMembersOpen && state.isProfileOpen === nextState.isProfileOpen) {
-      console.log("[NukeActivities] ChannelSection already clean:", { isMembersOpen: state.isMembersOpen, isProfileOpen: state.isProfileOpen });
-      return raw;
-    }
-
-    console.log("[NukeActivities] Sanitizing ChannelSection:", { 
-      before: { isMembersOpen: state.isMembersOpen, isProfileOpen: state.isProfileOpen },
-      after: { isMembersOpen: false, isProfileOpen: false }
-    });
-
-    return JSON.stringify({
-      ...parsed,
-      _state: nextState,
-    });
-  } catch (e) {
-    console.error("[NukeActivities] Failed to sanitize ChannelSection:", e);
-    return raw;
-  }
-}
-
-function enforceChannelSectionStore(): void {
-  console.log("[NukeActivities] Enforcing ChannelSection store...");
-  for (const key of CHANNEL_SECTION_STORAGE_KEYS) {
-    const current = localStorage.getItem(key);
-    console.log(`[NukeActivities] Current ${key}:`, current);
-    const sanitized = sanitizeChannelSectionStoreString(current);
-    if (sanitized && sanitized !== current) {
-      console.log(`[NukeActivities] Writing sanitized ${key} to localStorage`);
-      localStorage.setItem(key, sanitized);
-    }
-  }
-}
-
 function ensureStyle(): void {
   if (document.getElementById(STYLE_ID)) return;
 
@@ -157,24 +107,6 @@ type DispatchFn = typeof FluxDispatcher.dispatch;
 let originalDispatch: DispatchFn | null = null;
 let originalGetPresence: ((userId: string) => any) | null = null;
 
-let originalStorageSetItem: Storage["setItem"] | null = null;
-let originalStorageGetItem: Storage["getItem"] | null = null;
-let originalPushState: History["pushState"] | null = null;
-let originalReplaceState: History["replaceState"] | null = null;
-let enforcementInterval: ReturnType<typeof setInterval> | null = null;
-
-function onNavigation(): void {
-  console.log("[NukeActivities] Navigation detected, enforcing in 0ms...");
-  // Defer to allow Discord to update its state first, then clamp it.
-  setTimeout(() => {
-    try {
-      enforceChannelSectionStore();
-    } catch (e) {
-      console.error("[NukeActivities] Error in onNavigation:", e);
-    }
-  }, 0);
-}
-
 export default definePlugin({
   name: "NukeActivities",
   description: "Removes user activities (Playing/Streaming/etc.) everywhere by sanitizing presence data client-side.",
@@ -184,62 +116,7 @@ export default definePlugin({
   ],
 
   start(): void {
-    console.log("[NukeActivities] Plugin starting...");
     ensureStyle();
-
-    // Clamp any existing stored UI state immediately.
-    enforceChannelSectionStore();
-
-    // Intercept localStorage reads/writes for the specific key and force toggles off.
-    if (!originalStorageSetItem) {
-      originalStorageSetItem = Storage.prototype.setItem;
-      Storage.prototype.setItem = function (key: string, value: string): void {
-        if ((CHANNEL_SECTION_STORAGE_KEYS as readonly string[]).includes(key)) {
-          console.log(`[NukeActivities] Intercepting setItem(${key})`, value);
-          const sanitized = sanitizeChannelSectionStoreString(value);
-          console.log(`[NukeActivities] Sanitized result:`, sanitized);
-          return originalStorageSetItem!.call(this, key, sanitized ?? value);
-        }
-        return originalStorageSetItem!.call(this, key, value);
-      };
-    }
-
-    if (!originalStorageGetItem) {
-      originalStorageGetItem = Storage.prototype.getItem;
-      Storage.prototype.getItem = function (key: string): string | null {
-        const value = originalStorageGetItem!.call(this, key);
-        if ((CHANNEL_SECTION_STORAGE_KEYS as readonly string[]).includes(key)) {
-          console.log(`[NukeActivities] Intercepting getItem(${key})`, value);
-          const sanitized = sanitizeChannelSectionStoreString(value);
-          console.log(`[NukeActivities] Returning sanitized:`, sanitized);
-          return sanitized;
-        }
-        return value;
-      };
-    }
-
-    // Re-apply on navigation (Discord uses history API heavily).
-    if (!originalPushState) {
-      originalPushState = history.pushState;
-      history.pushState = function (...args: Parameters<History["pushState"]>): void {
-        originalPushState!.apply(this, args);
-        onNavigation();
-      };
-    }
-    if (!originalReplaceState) {
-      originalReplaceState = history.replaceState;
-      history.replaceState = function (...args: Parameters<History["replaceState"]>): void {
-        originalReplaceState!.apply(this, args);
-        onNavigation();
-      };
-    }
-    window.addEventListener("popstate", onNavigation);
-
-    // Continuously enforce the state (Discord may update via Flux without touching localStorage intercepts)
-    console.log("[NukeActivities] Starting continuous enforcement interval...");
-    enforcementInterval = setInterval(() => {
-      enforceChannelSectionStore();
-    }, 1000);
 
     // Patch store getter so any UI reading presence gets a sanitized copy.
     if (PresenceStore?.getPresence && !originalGetPresence) {
@@ -255,33 +132,7 @@ export default definePlugin({
   },
 
   stop(): void {
-    console.log("[NukeActivities] Plugin stopping...");
     removeStyle();
-
-    if (enforcementInterval) {
-      clearInterval(enforcementInterval);
-      enforcementInterval = null;
-      console.log("[NukeActivities] Stopped continuous enforcement.");
-    }
-
-    window.removeEventListener("popstate", onNavigation);
-    if (originalPushState) {
-      history.pushState = originalPushState;
-      originalPushState = null;
-    }
-    if (originalReplaceState) {
-      history.replaceState = originalReplaceState;
-      originalReplaceState = null;
-    }
-
-    if (originalStorageSetItem) {
-      Storage.prototype.setItem = originalStorageSetItem;
-      originalStorageSetItem = null;
-    }
-    if (originalStorageGetItem) {
-      Storage.prototype.getItem = originalStorageGetItem;
-      originalStorageGetItem = null;
-    }
 
     if (originalDispatch) {
       FluxDispatcher.dispatch = originalDispatch;
