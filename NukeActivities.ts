@@ -161,6 +161,7 @@ let originalStorageSetItem: Storage["setItem"] | null = null;
 let originalStorageGetItem: Storage["getItem"] | null = null;
 let originalPushState: History["pushState"] | null = null;
 let originalReplaceState: History["replaceState"] | null = null;
+let enforcementInterval: ReturnType<typeof setInterval> | null = null;
 
 function onNavigation(): void {
   console.log("[NukeActivities] Navigation detected, enforcing in 0ms...");
@@ -234,6 +235,12 @@ export default definePlugin({
     }
     window.addEventListener("popstate", onNavigation);
 
+    // Continuously enforce the state (Discord may update via Flux without touching localStorage intercepts)
+    console.log("[NukeActivities] Starting continuous enforcement interval...");
+    enforcementInterval = setInterval(() => {
+      enforceChannelSectionStore();
+    }, 1000);
+
     // Patch store getter so any UI reading presence gets a sanitized copy.
     if (PresenceStore?.getPresence && !originalGetPresence) {
       originalGetPresence = PresenceStore.getPresence.bind(PresenceStore);
@@ -248,7 +255,14 @@ export default definePlugin({
   },
 
   stop(): void {
+    console.log("[NukeActivities] Plugin stopping...");
     removeStyle();
+
+    if (enforcementInterval) {
+      clearInterval(enforcementInterval);
+      enforcementInterval = null;
+      console.log("[NukeActivities] Stopped continuous enforcement.");
+    }
 
     window.removeEventListener("popstate", onNavigation);
     if (originalPushState) {
