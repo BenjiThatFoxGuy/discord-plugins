@@ -114,7 +114,8 @@ function sanitizePresenceAction(action: unknown): unknown {
 function shouldBlockSidebarToggle(actionType: string): boolean {
   // Keep this narrow: only block the obvious member list / user profile toggles.
   // Avoid matching generic "SIDEBAR" actions (thread sidebar, search, etc.).
-  return /(\b|_)(MEMBERS?_?LIST)(\b|_)/i.test(actionType)
+  return /(\b|_)(MEMBERS?_?LIST|MEMBERS?_SECTION)(\b|_)/i.test(actionType)
+    || /(\b|_)(CHANNEL_)?TOGGLE_MEMBERS_SECTION(\b|_)/i.test(actionType)
     || /(\b|_)(USER_?PROFILE|PROFILE_?PANEL)(\b|_)/i.test(actionType);
 }
 
@@ -130,6 +131,43 @@ let originalGetPresence: ((userId: string) => any) | null = null;
 type ComponentDispatchFn = typeof ComponentDispatch.dispatchToLastSubscribed;
 let originalComponentDispatchToLast: ComponentDispatchFn | null = null;
 let originalComponentDispatchDispatch: ((...args: any[]) => any) | null = null;
+
+let enforceInterval: number | null = null;
+let enforceUntil = 0;
+
+function dispatchRaw(action: any): void {
+  // Use the unpatched dispatcher if we have it, so we can dispatch
+  // "close" actions even though we block user toggles.
+  (originalDispatch ?? FluxDispatcher.dispatch).call(FluxDispatcher, action);
+}
+
+function isMembersSidebarOpen(): boolean {
+  return !!document.querySelector('aside[aria-label="Members"]');
+}
+
+function enforceMembersSidebarHidden(): void {
+  if (isMembersSidebarOpen()) {
+    dispatchRaw({ type: "CHANNEL_TOGGLE_MEMBERS_SECTION" });
+  }
+}
+
+function startEnforcingHidden(durationMs = 2000): void {
+  enforceUntil = Math.max(enforceUntil, Date.now() + durationMs);
+
+  if (enforceInterval != null) return;
+
+  enforceInterval = window.setInterval(() => {
+    if (Date.now() > enforceUntil) {
+      if (enforceInterval != null) {
+        clearInterval(enforceInterval);
+        enforceInterval = null;
+      }
+      return;
+    }
+
+    enforceMembersSidebarHidden();
+  }, 200);
+}
 
 export default definePlugin({
   name: "NukeActivities",
@@ -158,6 +196,14 @@ export default definePlugin({
       };
     }
 
+    // Force-close (and keep closing briefly) in case the sidebar was already open
+    // or gets opened by other code shortly after channel navigation.
+    enforceMembersSidebarHidden();
+    startEnforcingHidden(3000);
+
+    // Re-run enforcement on channel switches.
+    FluxDispatcher.subscribe("CHANNEL_SELECT", startEnforcingHidden);
+
     // Many header bar buttons dispatch via ComponentDispatch rather than Flux actions.
     if (ComponentDispatch?.dispatchToLastSubscribed && !originalComponentDispatchToLast) {
       originalComponentDispatchToLast = ComponentDispatch.dispatchToLastSubscribed.bind(ComponentDispatch);
@@ -178,6 +224,14 @@ export default definePlugin({
 
   stop(): void {
     removeStyle();
+
+    FluxDispatcher.unsubscribe("CHANNEL_SELECT", startEnforcingHidden);
+
+    if (enforceInterval != null) {
+      clearInterval(enforceInterval);
+      enforceInterval = null;
+    }
+    enforceUntil = 0;
 
     if (originalDispatch) {
       FluxDispatcher.dispatch = originalDispatch;
