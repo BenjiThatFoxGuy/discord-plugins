@@ -32,23 +32,33 @@ function sanitizeChannelSectionStoreString(raw: string | null): string | null {
 
     // Only rewrite if something actually changes.
     if (state.isMembersOpen === nextState.isMembersOpen && state.isProfileOpen === nextState.isProfileOpen) {
+      console.log("[NukeActivities] ChannelSection already clean:", { isMembersOpen: state.isMembersOpen, isProfileOpen: state.isProfileOpen });
       return raw;
     }
+
+    console.log("[NukeActivities] Sanitizing ChannelSection:", { 
+      before: { isMembersOpen: state.isMembersOpen, isProfileOpen: state.isProfileOpen },
+      after: { isMembersOpen: false, isProfileOpen: false }
+    });
 
     return JSON.stringify({
       ...parsed,
       _state: nextState,
     });
-  } catch {
+  } catch (e) {
+    console.error("[NukeActivities] Failed to sanitize ChannelSection:", e);
     return raw;
   }
 }
 
 function enforceChannelSectionStore(): void {
+  console.log("[NukeActivities] Enforcing ChannelSection store...");
   for (const key of CHANNEL_SECTION_STORAGE_KEYS) {
     const current = localStorage.getItem(key);
+    console.log(`[NukeActivities] Current ${key}:`, current);
     const sanitized = sanitizeChannelSectionStoreString(current);
     if (sanitized && sanitized !== current) {
+      console.log(`[NukeActivities] Writing sanitized ${key} to localStorage`);
       localStorage.setItem(key, sanitized);
     }
   }
@@ -153,12 +163,13 @@ let originalPushState: History["pushState"] | null = null;
 let originalReplaceState: History["replaceState"] | null = null;
 
 function onNavigation(): void {
+  console.log("[NukeActivities] Navigation detected, enforcing in 0ms...");
   // Defer to allow Discord to update its state first, then clamp it.
   setTimeout(() => {
     try {
       enforceChannelSectionStore();
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error("[NukeActivities] Error in onNavigation:", e);
     }
   }, 0);
 }
@@ -172,6 +183,7 @@ export default definePlugin({
   ],
 
   start(): void {
+    console.log("[NukeActivities] Plugin starting...");
     ensureStyle();
 
     // Clamp any existing stored UI state immediately.
@@ -182,7 +194,9 @@ export default definePlugin({
       originalStorageSetItem = Storage.prototype.setItem;
       Storage.prototype.setItem = function (key: string, value: string): void {
         if ((CHANNEL_SECTION_STORAGE_KEYS as readonly string[]).includes(key)) {
+          console.log(`[NukeActivities] Intercepting setItem(${key})`, value);
           const sanitized = sanitizeChannelSectionStoreString(value);
+          console.log(`[NukeActivities] Sanitized result:`, sanitized);
           return originalStorageSetItem!.call(this, key, sanitized ?? value);
         }
         return originalStorageSetItem!.call(this, key, value);
@@ -194,7 +208,10 @@ export default definePlugin({
       Storage.prototype.getItem = function (key: string): string | null {
         const value = originalStorageGetItem!.call(this, key);
         if ((CHANNEL_SECTION_STORAGE_KEYS as readonly string[]).includes(key)) {
-          return sanitizeChannelSectionStoreString(value);
+          console.log(`[NukeActivities] Intercepting getItem(${key})`, value);
+          const sanitized = sanitizeChannelSectionStoreString(value);
+          console.log(`[NukeActivities] Returning sanitized:`, sanitized);
+          return sanitized;
         }
         return value;
       };
