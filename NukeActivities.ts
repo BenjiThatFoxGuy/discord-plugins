@@ -7,12 +7,52 @@
 import definePlugin from "@utils/types";
 
 import { findByPropsLazy } from "@webpack";
-import { ComponentDispatch, FluxDispatcher } from "@webpack/common";
+import { FluxDispatcher } from "@webpack/common";
 
 // Lazily resolved; will be available once Discord's modules are loaded.
 const PresenceStore = findByPropsLazy("getPresence");
 
 const STYLE_ID = "vc-nuke-activities";
+
+const CHANNEL_SECTION_STORAGE_KEYS = ["ChannelSectionStore2"] as const;
+
+function sanitizeChannelSectionStoreString(raw: string | null): string | null {
+  if (!raw) return raw;
+  try {
+    const parsed = JSON.parse(raw) as any;
+    const state = parsed?._state;
+    if (!state || typeof state !== "object") return raw;
+
+    // Force these to be disabled.
+    const nextState = {
+      ...state,
+      isMembersOpen: false,
+      isProfileOpen: false,
+    };
+
+    // Only rewrite if something actually changes.
+    if (state.isMembersOpen === nextState.isMembersOpen && state.isProfileOpen === nextState.isProfileOpen) {
+      return raw;
+    }
+
+    return JSON.stringify({
+      ...parsed,
+      _state: nextState,
+    });
+  } catch {
+    return raw;
+  }
+}
+
+function enforceChannelSectionStore(): void {
+  for (const key of CHANNEL_SECTION_STORAGE_KEYS) {
+    const current = localStorage.getItem(key);
+    const sanitized = sanitizeChannelSectionStoreString(current);
+    if (sanitized && sanitized !== current) {
+      localStorage.setItem(key, sanitized);
+    }
+  }
+}
 
 function ensureStyle(): void {
   if (document.getElementById(STYLE_ID)) return;
@@ -27,14 +67,6 @@ function ensureStyle(): void {
     [aria-label^="Listening to "] ,
     [aria-label^="Watching "] ,
     [aria-label^="Competing "] {
-      display: none !important;
-    }
-
-    /* Optional UX hard-disable: if the sidebars still get opened, hide them entirely */
-    aside[aria-label="Members"],
-    aside[aria-label="User Profile"],
-    aside[aria-label="Profile"],
-    aside[aria-label="User profile"] {
       display: none !important;
     }
   `;
@@ -111,62 +143,24 @@ function sanitizePresenceAction(action: unknown): unknown {
   return changed ? next : action;
 }
 
-function shouldBlockSidebarToggle(actionType: string): boolean {
-  // Keep this narrow: only block the obvious member list / user profile toggles.
-  // Avoid matching generic "SIDEBAR" actions (thread sidebar, search, etc.).
-  return /(\b|_)(MEMBERS?_?LIST|MEMBERS?_SECTION)(\b|_)/i.test(actionType)
-    || /(\b|_)(CHANNEL_)?TOGGLE_MEMBERS_SECTION(\b|_)/i.test(actionType)
-    || /(\b|_)(USER_?PROFILE|PROFILE_?PANEL)(\b|_)/i.test(actionType);
-}
-
-function shouldBlockComponentDispatch(eventName: unknown): boolean {
-  if (typeof eventName !== "string") return false;
-  return shouldBlockSidebarToggle(eventName);
-}
-
 type DispatchFn = typeof FluxDispatcher.dispatch;
 let originalDispatch: DispatchFn | null = null;
 let originalGetPresence: ((userId: string) => any) | null = null;
 
-type ComponentDispatchFn = typeof ComponentDispatch.dispatchToLastSubscribed;
-let originalComponentDispatchToLast: ComponentDispatchFn | null = null;
-let originalComponentDispatchDispatch: ((...args: any[]) => any) | null = null;
+let originalStorageSetItem: Storage["setItem"] | null = null;
+let originalStorageGetItem: Storage["getItem"] | null = null;
+let originalPushState: History["pushState"] | null = null;
+let originalReplaceState: History["replaceState"] | null = null;
 
-let enforceInterval: number | null = null;
-let enforceUntil = 0;
-
-function dispatchRaw(action: any): void {
-  // Use the unpatched dispatcher if we have it, so we can dispatch
-  // "close" actions even though we block user toggles.
-  (originalDispatch ?? FluxDispatcher.dispatch).call(FluxDispatcher, action);
-}
-
-function isMembersSidebarOpen(): boolean {
-  return !!document.querySelector('aside[aria-label="Members"]');
-}
-
-function enforceMembersSidebarHidden(): void {
-  if (isMembersSidebarOpen()) {
-    dispatchRaw({ type: "CHANNEL_TOGGLE_MEMBERS_SECTION" });
-  }
-}
-
-function startEnforcingHidden(durationMs = 2000): void {
-  enforceUntil = Math.max(enforceUntil, Date.now() + durationMs);
-
-  if (enforceInterval != null) return;
-
-  enforceInterval = window.setInterval(() => {
-    if (Date.now() > enforceUntil) {
-      if (enforceInterval != null) {
-        clearInterval(enforceInterval);
-        enforceInterval = null;
-      }
-      return;
+function onNavigation(): void {
+  // Defer to allow Discord to update its state first, then clamp it.
+  setTimeout(() => {
+    try {
+      enforceChannelSectionStore();
+    } catch {
+      // ignore
     }
-
-    enforceMembersSidebarHidden();
-  }, 200);
+  }, 0);
 }
 
 export default definePlugin({
@@ -180,6 +174,49 @@ export default definePlugin({
   start(): void {
     ensureStyle();
 
+    // Clamp any existing stored UI state immediately.
+    enforceChannelSectionStore();
+
+    // Intercept localStorage reads/writes for the specific key and force toggles off.
+    if (!originalStorageSetItem) {
+      originalStorageSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key: string, value: string): void {
+        if ((CHANNEL_SECTION_STORAGE_KEYS as readonly string[]).includes(key)) {
+          const sanitized = sanitizeChannelSectionStoreString(value);
+          return originalStorageSetItem!.call(this, key, sanitized ?? value);
+        }
+        return originalStorageSetItem!.call(this, key, value);
+      };
+    }
+
+    if (!originalStorageGetItem) {
+      originalStorageGetItem = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (key: string): string | null {
+        const value = originalStorageGetItem!.call(this, key);
+        if ((CHANNEL_SECTION_STORAGE_KEYS as readonly string[]).includes(key)) {
+          return sanitizeChannelSectionStoreString(value);
+        }
+        return value;
+      };
+    }
+
+    // Re-apply on navigation (Discord uses history API heavily).
+    if (!originalPushState) {
+      originalPushState = history.pushState;
+      history.pushState = function (...args: Parameters<History["pushState"]>): void {
+        originalPushState!.apply(this, args);
+        onNavigation();
+      };
+    }
+    if (!originalReplaceState) {
+      originalReplaceState = history.replaceState;
+      history.replaceState = function (...args: Parameters<History["replaceState"]>): void {
+        originalReplaceState!.apply(this, args);
+        onNavigation();
+      };
+    }
+    window.addEventListener("popstate", onNavigation);
+
     // Patch store getter so any UI reading presence gets a sanitized copy.
     if (PresenceStore?.getPresence && !originalGetPresence) {
       originalGetPresence = PresenceStore.getPresence.bind(PresenceStore);
@@ -189,63 +226,35 @@ export default definePlugin({
     // Patch dispatcher so presence updates never populate activities in the first place.
     if (!originalDispatch) {
       originalDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
-      FluxDispatcher.dispatch = (action: unknown) => {
-        const type = String((action as any)?.type ?? "");
-        if (type && shouldBlockSidebarToggle(type)) return;
-        return originalDispatch!(sanitizePresenceAction(action) as any);
-      };
-    }
-
-    // Force-close (and keep closing briefly) in case the sidebar was already open
-    // or gets opened by other code shortly after channel navigation.
-    enforceMembersSidebarHidden();
-    startEnforcingHidden(3000);
-
-    // Re-run enforcement on channel switches.
-    FluxDispatcher.subscribe("CHANNEL_SELECT", startEnforcingHidden);
-
-    // Many header bar buttons dispatch via ComponentDispatch rather than Flux actions.
-    if (ComponentDispatch?.dispatchToLastSubscribed && !originalComponentDispatchToLast) {
-      originalComponentDispatchToLast = ComponentDispatch.dispatchToLastSubscribed.bind(ComponentDispatch);
-      ComponentDispatch.dispatchToLastSubscribed = (...args: any[]) => {
-        if (shouldBlockComponentDispatch(args[0])) return;
-        return originalComponentDispatchToLast!(...args);
-      };
-    }
-
-    if (ComponentDispatch?.dispatch && !originalComponentDispatchDispatch) {
-      originalComponentDispatchDispatch = ComponentDispatch.dispatch.bind(ComponentDispatch);
-      ComponentDispatch.dispatch = (...args: any[]) => {
-        if (shouldBlockComponentDispatch(args[0])) return;
-        return originalComponentDispatchDispatch!(...args);
-      };
+      FluxDispatcher.dispatch = (action: unknown) => originalDispatch!(sanitizePresenceAction(action) as any);
     }
   },
 
   stop(): void {
     removeStyle();
 
-    FluxDispatcher.unsubscribe("CHANNEL_SELECT", startEnforcingHidden);
-
-    if (enforceInterval != null) {
-      clearInterval(enforceInterval);
-      enforceInterval = null;
+    window.removeEventListener("popstate", onNavigation);
+    if (originalPushState) {
+      history.pushState = originalPushState;
+      originalPushState = null;
     }
-    enforceUntil = 0;
+    if (originalReplaceState) {
+      history.replaceState = originalReplaceState;
+      originalReplaceState = null;
+    }
+
+    if (originalStorageSetItem) {
+      Storage.prototype.setItem = originalStorageSetItem;
+      originalStorageSetItem = null;
+    }
+    if (originalStorageGetItem) {
+      Storage.prototype.getItem = originalStorageGetItem;
+      originalStorageGetItem = null;
+    }
 
     if (originalDispatch) {
       FluxDispatcher.dispatch = originalDispatch;
       originalDispatch = null;
-    }
-
-    if (originalComponentDispatchToLast && ComponentDispatch?.dispatchToLastSubscribed) {
-      ComponentDispatch.dispatchToLastSubscribed = originalComponentDispatchToLast;
-      originalComponentDispatchToLast = null;
-    }
-
-    if (originalComponentDispatchDispatch && ComponentDispatch?.dispatch) {
-      ComponentDispatch.dispatch = originalComponentDispatchDispatch;
-      originalComponentDispatchDispatch = null;
     }
 
     if (originalGetPresence && PresenceStore?.getPresence) {
